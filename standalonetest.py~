@@ -1,0 +1,12 @@
+#!/usr/bin/env python
+__author__ = "M.Arratia"
+__version__ = "2.0"
+__status__ = "Prototype"
+
+from UsefulFunctions import *
+
+RaiseThresholdsToMax()
+SetVoltage(True, 5, 125) 
+Unlatch(True, 5)
+I, V = ReadADC(True)
+print 'Current %f, Voltage %f' %(I[5], V[5]) 
