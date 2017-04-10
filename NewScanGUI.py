@@ -58,26 +58,36 @@ class Application(tk.Frame):
 	S.grid(row = 1, column = 2)
 
 
-        ################################################################################################
-
         NameOfTester = tk.IntVar()
-	tk.Label(self, text = "WhoAmI").grid(row = 9, column = 7)
-        tk.Label(self, text = "Fernando").grid(row = 10, column = 7)
-	tk.Label(self, text = "Joshua").grid(row = 11, column = 7)
-        tk.Label(self, text = "Miguel").grid(row = 12, column = 7)
-	tk.Label(self, text = "...").grid(row = 13, column = 7)
-	WhoAmI = tk.Radiobutton(self, variable=NameOfTester, value=0)
-	Fernando = tk.Radiobutton(self, variable=NameOfTester, value=1)
-	Joshua = tk.Radiobutton(self, variable=NameOfTester, value=2)
-        Miguel = tk.Radiobutton(self, variable=NameOfTester, value=3)
-	Other = tk.Radiobutton(self, variable=NameOfTester, value=4)
+        def GetBoardID(): #to be implemented with barcode.
+	    return 1
+        def ScanBoardID(): #to be implemented with barcode.
+	    print ' Function to be implemented'
+	    return 1
+        ############# SHOWS BOARD ID ##############################################  
+        tk.Label(self, text = "Board ID = %i" %(GetBoardID()), bg='yellow', fg="blue").grid(row = 0, column = 9)
+
+        ScanID = tk.Button(self, text="Scan Board ID", command = ScanBoardID)
+	ScanID.grid(row = 0, column = 10, columnspan = 4)
 
 
-        WhoAmI.grid(row = 9, column = 8) 
-	Fernando.grid(row = 10, column = 8) 
-	Joshua.grid(row =11, column = 8)
-        Miguel.grid(row = 12, column = 8) 
-	Other.grid(row =13, column = 8)
+
+        ################################################################################################
+        ############ SETTING NAME
+        NameOfTester = tk.IntVar()
+        tk.Label(self, text = "Pick your name", fg="red").grid(row = 8, column = 7)
+	#tk.Label(self, text = "WhoAmI").grid(row = 9, column = 7)
+        tk.Label(self, text = "Fernando").grid(row = 9, column = 7)
+	tk.Label(self, text = "Joshua").grid(row = 10, column = 7)
+        tk.Label(self, text = "Miguel").grid(row = 11, column = 7)
+	#tk.Label(self, text = "...").grid(row = 12, column = 7)
+	#WhoAmI = tk.Radiobutton(self, variable=NameOfTester, value=0)
+	tk.Radiobutton(self, variable=NameOfTester, value=1).grid(row = 9, column = 8) 
+	tk.Radiobutton(self, variable=NameOfTester, value=2).grid(row = 10, column = 8) 
+        tk.Radiobutton(self, variable=NameOfTester, value=3).grid(row = 11, column = 8) 
+
+
+        #WhoAmI.grid(row = 9, column = 8) 
 
         def  GetNameOfTester():
 	    name_id = NameOfTester.get()
@@ -85,18 +95,39 @@ class Application(tk.Frame):
 	    if(name_id==1): return 'Fernando'
 	    elif(name_id==2): return 'Joshua'
 	    elif(name_id==3): return 'Miguel'
-	    elif(name_id==4): return 'Other'
-            elif(name_id==0): return 'WhoAmI'
-	    return 
+	    return 'Unknown'
+ 
+        ################################################################################################
+        ######## PICK TYPE OF LOAD #####################################################################
+        #################################################################################################
+        LoadType = tk.IntVar()
+        tk.Label(self, text = "Pick load type used", fg="red").grid(row = 8, column = 10)
+	tk.Label(self, text = "#1 (nominal)").grid(row = 9, column = 10)
+        tk.Label(self, text = "#2 (low power)").grid(row = 10, column = 10)
+        tk.Label(self, text = "#3 (high power)").grid(row = 11, column = 10)
 
+        tk.Radiobutton(self, variable=LoadType, value=1).grid(row = 9, column = 12)
+        tk.Radiobutton(self, variable=LoadType, value=2).grid(row = 10, column = 12)
+        tk.Radiobutton(self, variable=LoadType, value=3).grid(row = 11, column = 12)
+
+        def GetLoadType():
+	    load_id = LoadType.get()
+	    load = 'Unknown'
+	    if(load_id==1): return '1'
+	    elif(load_id==2): return '2'
+	    elif(load_id==3): return '3'
+	    return 'Unknown'
+
+ 
  	def I2CTest():
-		I2C()
+            tkMessageBox.showwarning( "Info", "All tests finished. If you have any comment please enter it below", icon="info")
+            #I2C()
         
         def RunThresholdScan():
             if( not AreSelectedChannels()): return
             print ' Running the threshold scan' 
 	    timestamp =  time.strftime("%Y%m%dT%H%M%S") #Setting timestamp format 
-	    output = outputFolder+ str(timestamp) + '__ThresholdScan__'+ GetNameOfTester() +'.txt'
+	    output = outputFolder+ str(timestamp) + '__ThresholdScan__'+ GetNameOfTester() + '_LoadType' + GetLoadType() +'.txt'
 	    isMaster = True
             Vset = [125]
             Step = ScanStep.get()
@@ -118,7 +149,7 @@ class Application(tk.Frame):
             if( not AreSelectedChannels()): return
 	    print ' Running voltage scan '
             timestamp =  time.strftime("%Y%m%dT%H%M%S") #Setting timestamp format 
-	    output = outputFolder+ str(timestamp) + '__VoltageScan__'+ GetNameOfTester() +'.txt'
+	    output = outputFolder+ str(timestamp) + '__VoltageScan__'+ GetNameOfTester() + '_LoadType' + GetLoadType() +'.txt'
 	    isMaster = True
             step_size = step.get() 
             if len(step.get())==0:
@@ -145,12 +176,17 @@ class Application(tk.Frame):
      
         def RunAllScans():
 	    if tkMessageBox.askyesno( "", "Did you do visual inspection & smoke test?"):
-	        if tkMessageBox.askyesno( "", "Did you check that board ID and your name are correct?"):
+	        if tkMessageBox.askyesno( "", "Is the following info OK? \n \n Board ID= %i \n Load array type= %s \n Your name= %s" 
+	                                       %(1, GetLoadType(), GetNameOfTester()) ):
+                    output = outputFolder+ 'BoardID%i_PassedVisualAndSmokeTest__%s.txt' %(GetBoardID(), GetNameOfTester())
+	            if os.path.exists(output): os.remove(output)
+	            with open(output,"ab") as f: f.write("OK\n")
                     if tkMessageBox.askyesno( "", "Are you sure you want to run all tests?"):
                         if( not AreSelectedChannels()): return
                         RunVoltageScan()
 	                RunThresholdScan()
                         I2CTest()
+                        tkMessageBox.showwarning( "Info", "All tests finished. If you have any comment please enter it below", icon="info")
             return 
 	
   	def SetVoltage():
@@ -160,6 +196,12 @@ class Application(tk.Frame):
 			ch_vars[x] = self.box_vars[x].get()
 	                if(ch_vars[x] == 1):	
 				SetV(MS,x,voltage)
+
+	def SetComment():
+	    myComment = Comment.get()
+            if tkMessageBox.askyesno( "", "Do you want to enter the following comment: \n \n '%s ' \n made by: %s" %(myComment, GetNameOfTester())):
+	        print myComment
+	    return
 
   	def SetThreshVal():
 		MS = var.get()
@@ -179,8 +221,6 @@ class Application(tk.Frame):
 		else:
 			SetThresh(MS,ch_vars,thresh)
 	 		
-	
-        
 	################################################################################################
         for name in self.test_names:
             self.box_vars.append(tk.IntVar())
@@ -213,8 +253,6 @@ class Application(tk.Frame):
         ScanStepWant.grid(row = 10, column = 3, columnspan = 4)
         #############################################################################
 
-
-
         ########## SET VOLTAGE ########################################
         vtext = tk.StringVar()
         VoltWant = tk.Entry(self, textvariable=vtext)
@@ -231,9 +269,17 @@ class Application(tk.Frame):
         SETTHRESH.grid(row = 19, column = 4, columnspan = 4)	
         ######################################################################################
 
+        ########## ENTER COMMENT ############################################################# 
+        Comment = tk.StringVar()
+        CommentWant = tk.Entry(self, textvariable=Comment)
+        CommentWant.grid(row = 22, column = 0, columnspan = 10)
+	SETCOMMENT = tk.Button(self, text="Enter your Comment", command = SetComment)
+        SETCOMMENT.grid(row = 21, column = 0, columnspan = 10)	
+        ######################################################################################
+
 
         ### Run all test ##################################################################
-    	RunAllTestsButton = tk.Button(self, text="Run All Tests", command = RunAllScans)
+    	RunAllTestsButton = tk.Button(self, text="Run All Tests", command = RunAllScans, bg='red')
         RunAllTestsButton.grid(row = 12, column = 2, columnspan = 4)
         ###################################################################################
 
