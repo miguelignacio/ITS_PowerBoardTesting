@@ -11,12 +11,7 @@ import subprocess
 from definitions import WriteToDevice
 from definitions import ReadFromDevice
 from definitions import ReadRSFromDevice
-from ScanVI import SetCh
-from ScanVI import enable
-#from ScanAll import ScanAllCH
-from SetVoltage import SetV
-from I2CAddressability import I2C
-from BiasCheck import BiasScan
+from I2CTest import I2C
 from SetThreshold import SetThresh
 
 from VoltageScan import VoltageScan
@@ -41,6 +36,7 @@ class Application(tk.Frame):
         self.box_vars = []
         self.box_enab = []
         self.box_num = 0
+        self.BOARD_ID=1
 
         #MAIN FUNCTION: 
 	ch_vars = [0 for i in range(8)]
@@ -59,14 +55,20 @@ class Application(tk.Frame):
 
 
         NameOfTester = tk.IntVar()
-        def GetBoardID(): #to be implemented with barcode.
-	    return 1
-        def ScanBoardID(): #to be implemented with barcode.
-	    print ' Function to be implemented'
-	    return 1
-        ############# SHOWS BOARD ID ##############################################  
-        tk.Label(self, text = "Board ID = %i" %(GetBoardID()), bg='yellow', fg="blue").grid(row = 0, column = 9)
+	def GetBoardID():
+            print 'The board ID is ' , self.BOARD_ID
+	    return self.BOARD_ID
 
+        ############# SHOWS BOARD ID ##############################################  
+        tk.Label(self, text = "Board ID = ?", bg='red', fg="blue").grid(row = 0, column = 9)
+        def LabelBoardID():
+            tk.Label(self, text = "Board ID = %i" %(int(GetBoardID())), bg='green', fg="blue").grid(row = 0, column = 9)
+
+        def ScanBoardID(): #to be implemented with barcode.
+            self.BOARD_ID =int(raw_input('Please read barcode on board...'))
+            LabelBoardID()
+	    
+	    return 
         ScanID = tk.Button(self, text="Scan Board ID", command = ScanBoardID)
 	ScanID.grid(row = 0, column = 10, columnspan = 4)
 
@@ -119,15 +121,16 @@ class Application(tk.Frame):
 	    return 'Unknown'
 
  
- 	def I2CTest():
-            tkMessageBox.showwarning( "Info", "All tests finished. If you have any comment please enter it below", icon="info")
-            #I2C()
+ 	def RunI2CTest(timestamp=time.strftime("%Y%m%dT%H%M%S")):
+            #tkMessageBox.showwarning( "Info", "All tests finished. If you have any comment please enter it below", icon="info")
+            I2C()
         
-        def RunThresholdScan():
+        def RunThresholdScan(timestamp=time.strftime("%Y%m%dT%H%M%S")):
             if( not AreSelectedChannels()): return
             print ' Running the threshold scan' 
-	    timestamp =  time.strftime("%Y%m%dT%H%M%S") #Setting timestamp format 
-	    output = outputFolder+ str(timestamp) + '__ThresholdScan__'+ GetNameOfTester() + '_LoadType' + GetLoadType() +'.txt'
+	    #timestamp =  time.strftime("%Y%m%dT%H%M%S") #Setting timestamp format 
+	    output = outputFolder+ str(timestamp)
+            output = output + '_BoardID%i_LoadType%s_ThresholdScan_%s.txt' %(GetBoardID(), GetLoadType(), GetNameOfTester())
 	    isMaster = True
             Vset = [125]
             Step = ScanStep.get()
@@ -145,11 +148,12 @@ class Application(tk.Frame):
                         thresholdScanAll(output, isMaster, x, int(Step), int(V))
             print 'Threshold scan test ended '
  
-	def RunVoltageScan():
+	def RunVoltageScan(timestamp=time.strftime("%Y%m%dT%H%M%S")):
             if( not AreSelectedChannels()): return
 	    print ' Running voltage scan '
-            timestamp =  time.strftime("%Y%m%dT%H%M%S") #Setting timestamp format 
-	    output = outputFolder+ str(timestamp) + '__VoltageScan__'+ GetNameOfTester() + '_LoadType' + GetLoadType() +'.txt'
+            #timestamp =  time.strftime("%Y%m%dT%H%M%S") #Setting timestamp format 
+	    output = outputFolder+ str(timestamp)
+            output = output + '_BoardID%i_LoadType%s_VoltageScan_%s.txt' %(GetBoardID(), GetLoadType(), GetNameOfTester())
 	    isMaster = True
             step_size = step.get() 
             if len(step.get())==0:
@@ -177,15 +181,17 @@ class Application(tk.Frame):
         def RunAllScans():
 	    if tkMessageBox.askyesno( "", "Did you do visual inspection & smoke test?"):
 	        if tkMessageBox.askyesno( "", "Is the following info OK? \n \n Board ID= %i \n Load array type= %s \n Your name= %s" 
-	                                       %(1, GetLoadType(), GetNameOfTester()) ):
-                    output = outputFolder+ 'BoardID%i_PassedVisualAndSmokeTest__%s.txt' %(GetBoardID(), GetNameOfTester())
+	                                       %(GetBoardID(), GetLoadType(), GetNameOfTester()) ):
+                    timestamp =  time.strftime("%Y%m%dT%H%M%S") #Setting timestamp format 
+                    output = outputFolder+ str(timestamp)
+                    output = output + '_BoardID%i_LoadType%s_VisualAndSmokeTest_%s.txt' %(GetBoardID(), GetLoadType(), GetNameOfTester())
 	            if os.path.exists(output): os.remove(output)
 	            with open(output,"ab") as f: f.write("OK\n")
                     if tkMessageBox.askyesno( "", "Are you sure you want to run all tests?"):
                         if( not AreSelectedChannels()): return
-                        RunVoltageScan()
-	                RunThresholdScan()
-                        I2CTest()
+                        #RunI2CTest(timestamp)
+                        RunVoltageScan(timestamp)
+	                RunThresholdScan(timestamp)
                         tkMessageBox.showwarning( "Info", "All tests finished. If you have any comment please enter it below", icon="info")
             return 
 	
@@ -230,7 +236,7 @@ class Application(tk.Frame):
         ################################################################################################
 
 	### I2C ###########################################################
-    	I2CButton = tk.Button(self, text="I2C Test", command = I2CTest)
+    	I2CButton = tk.Button(self, text="I2C Test", command = RunI2CTest)
         I2CButton.grid(row = 0, column = 6, columnspan = 2)
         ###################################################################
 
