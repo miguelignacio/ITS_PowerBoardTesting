@@ -121,7 +121,7 @@ def ReadPowerADC(PowerUnitID):
             WriteToDevice(I2CLink(PowerUnitID, LinkType), SlaveAddress, *I2CData)
             ADCValue = ReadFromDevice(I2CLink(PowerUnitID, LinkType), SlaveAddress, NumOfBytesToRead)
             if channel%2:
-                I.append( (((ADCValue[0]>>4)/4096.)*2.56 - 0.25)/(0.005*150) )
+                I.append( (((ADCValue[0]>>4)/4096.)*2.56 - 0.25)/(0.005*150) *1.00294 +0.013083 )   
                 I_ADC.append( (ADCValue[0]>>4)/4096.)
             else:
                 V.append( ((ADCValue[0]>>4)/4096.)*2.56 )
@@ -152,7 +152,7 @@ def ReadBiasADC(PowerUnitID):
 def SetPowerVoltageAll(voltage, PowerUnitID):
     for channel in range (0, 16):
         SetPowerVoltage(channel, voltage, PowerUnitID)
-    #time.sleep(0.02)
+
 
 
 def SetPowerVoltage(channel, voltage, PowerUnitID=1):
@@ -162,7 +162,7 @@ def SetPowerVoltage(channel, voltage, PowerUnitID=1):
 
     LinkType = PotPowerLink
     WriteToDevice(I2CLink(PowerUnitID, LinkType), PotPowerAddress[channel/4], channel%4, int(voltage))
-    #time.sleep(0.02)
+
 
 def SetBiasVoltage(voltage, PowerUnitID=1):
     #print 'Setting bias voltage to %d [DAC]' %(voltage) 
@@ -170,7 +170,7 @@ def SetBiasVoltage(voltage, PowerUnitID=1):
     LinkType = PotBiasLink
     I2CData = [0x11, int(voltage)]
     WriteToDevice(I2CLink(PowerUnitID, LinkType), PotBiasAddress, *I2CData) 
-    #time.sleep(0.02)
+
 
 def GetPowerLatchStatus(PowerUnitID):
     #print 'Reading status of power channels...'
@@ -190,13 +190,13 @@ def UnlatchPowerAll(PowerUnitID):
     LinkType = IOExpanderPowerLink
     WriteToDevice(I2CLink(PowerUnitID, LinkType), IOExpanderPowerAddress[0], 0xFF) 
     WriteToDevice(I2CLink(PowerUnitID, LinkType), IOExpanderPowerAddress[1], 0xFF) 
-    #time.sleep(0.02)
+
     
 def UnlatchBiasAll(PowerUnitID):
     #print 'Unlatching ALL bias channels'
     LinkType = IOExpanderBiasLink
     WriteToDevice(I2CLink(PowerUnitID, LinkType), IOExpanderBiasAddress, 0x00) 
-    #time.sleep(0.02)
+
 
 def UnlatchPower(channel,PowerUnitID):
     #print 'Unlatching power channel #%d' %(channel)
@@ -204,7 +204,7 @@ def UnlatchPower(channel,PowerUnitID):
         print "Channel %d for power does not exist" % (channel)
     LinkType = IOExpanderPowerLink
     WriteToDevice(I2CLink(PowerUnitID, LinkType), IOExpanderPowerAddress[channel/8], int(0x00^2**(channel%8))) 
-    time.sleep(0.02)
+
 
 def UnlatchBias(channel,PowerUnitID):
     print 'Unlatching bias channel #%d' %(channel)
@@ -212,7 +212,7 @@ def UnlatchBias(channel,PowerUnitID):
         print 'Channel #%d for bias does not exist' % (channel)
     LinkType = IOExpanderBiasLink
     WriteToDevice(I2CLink(PowerUnitID, LinkType), IOExpanderBiasAddress, int(0xFF^2**channel)) 
-    #time.sleep(0.02)
+
 
 def DisablePowerAll(PowerUnitID):
     print 'Disabling ALL power channels'

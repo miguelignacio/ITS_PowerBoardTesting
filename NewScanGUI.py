@@ -38,6 +38,7 @@ class Application(tk.Frame):
         # get the most recent configuration file
         files = os.listdir(configurationFolder)
         prefix = 'config'
+        # the integer casting is necessary to sort properly
         numbers = [int(f[len(prefix):]) for f in files if f.startswith(prefix) and not f.endswith('~')]
         configNumber = max(numbers)
         configurationFile = configurationFolder + prefix + str(configNumber)
@@ -56,7 +57,7 @@ class Application(tk.Frame):
 
         def buildOutputFilename(timestamp, testName):
           filename = outputFolder + str(timestamp)
-          filename = filename +'_BoardID%i_PowerUnitID%s_LoadType%s_Config%s_%s_%s.txt' %(GetBoardID(), GetPowerUnitID(), GetLoadType(), configNumber, testName, GetNameOfTester())
+          filename = filename +'_BoardID%i_v1.%d_PowerUnitID%s_LoadType%s_Config%s_%s_%s.txt' %(GetBoardID(), GetBoardVersion(), GetPowerUnitID(), GetLoadType(), configNumber, testName, GetNameOfTester())
           return filename
 
 
@@ -138,6 +139,23 @@ class Application(tk.Frame):
             elif(load_id==3): return '3'
             return 'Unknown'
 
+        ##############################################################################################
+        ####### PICK BOARD VERSION
+
+        BoardVersion = tk.IntVar()
+        tk.Label(self, text = "Board version").grid(row = 8, column = 8)
+        tk.Label(self, text = "v1.1").grid(row = 9, column = 8)
+        tk.Label(self, text = "v1.2").grid(row = 10, column = 8)
+        tk.Label(self, text = "v1.3").grid(row = 11, column = 8)
+
+        tk.Radiobutton(self, variable=BoardVersion, value=1).grid(row = 9, column = 9)
+        tk.Radiobutton(self, variable=BoardVersion, value=2).grid(row = 10, column = 9)
+        tk.Radiobutton(self, variable=BoardVersion, value=3).grid(row = 11, column = 9)
+       
+        BoardVersion.set(1)
+	def GetBoardVersion():
+	    return BoardVersion.get()
+
         ################################################################################################
         ######## SELECT VOLTAGE SCAN PLOTTING OPTION ###################################################
         #################################################################################################
@@ -159,7 +177,7 @@ class Application(tk.Frame):
             I2C()
 
         def RunThresholdScan(timestamp=time.strftime("%Y%m%dT%H%M%S")):
-            if( not AreSelectedChannels()): return
+            #if( not AreSelectedChannels()): return
             print ' Running the threshold scan'
             #timestamp =  time.strftime("%Y%m%dT%H%M%S") #Setting timestamp format
             output = buildOutputFilename(timestamp, "ThresholdScan")
@@ -171,14 +189,14 @@ class Application(tk.Frame):
 
             if os.path.exists(output): # Delete data file with this name if found
                 os.remove(output)
-            header = "ch# Threshold[DAC] Vset [DAC] V [V] I [A]  R [ohm] T[C]"
+            header = "ch# Threshold[DAC] Vset [DAC] V [V] I [A]  R [ohm] T[C] LUstate"
             with open(output,"ab") as f:
                 f.write(str(header) + "\n")
-            for x in range(0,16):
-                ch_vars[x] = self.box_vars[x].get()
-                if(ch_vars[x] == 1):
-                        for V in Vset:
-                            thresholdScanAll(output,x, step, start , end, V, PowerUnitID.get())
+            #for x in range(0,16):
+            #    ch_vars[x] = self.box_vars[x].get()
+            #    if(ch_vars[x] == 1):
+            for V in Vset:
+                thresholdScanAll(output, step, start , end, V, PowerUnitID.get())
             print 'Threshold scan test ended. Output written in: ', output
 
         def RunPowerVoltageScan(timestamp=time.strftime("%Y%m%dT%H%M%S")):
@@ -232,6 +250,10 @@ class Application(tk.Frame):
             BiasVoltageScan(output, Vstep, start, end, samplingtime, nsamples, sleep, PowerUnitID.get())
             print 'Voltage scan test ended. Results were written in: ', output       
 
+            bvsData = PbData.BiasVoltageScan()
+            bvsData.readFile(output)
+            bvsHasProblem = bvsData.visualizeAndCheck()
+
         def RunOverTprotectionScan(timestamp=time.strftime("%Y%m%dT%H%M%S")):
             print ' Running temperature scan '
             output = buildOutputFilename(timestamp, "TemperatureScan")
@@ -249,7 +271,7 @@ class Application(tk.Frame):
 
         def RunLatchupCheck(timestamp=time.strftime("%Y%m%dT%H%M%S")):
             print ' Running latchup check scan '
-            output = buildOutputFilename(timestamp, "LachupTest")
+            output = buildOutputFilename(timestamp, "LatchupTest")
             if os.path.exists(output): os.remove(output)
             header = "#ch Before Enabling / After Enabling / After Latching"
             with open(output,"ab") as f:
@@ -269,18 +291,18 @@ class Application(tk.Frame):
             return flag
 
         def RunAllScans():
-            if tkMessageBox.askyesno( "", "Did you do visual inspection & smoke test?"):
-                if tkMessageBox.askyesno( "", "Is the following info OK? \n \n Board ID= %i \n Load array type= %s \n Your name= %s" 
-                                               %(GetBoardID(), GetLoadType(), GetNameOfTester()) ):
+            if tkMessageBox.askyesno( "", "Did you do visual inspection & smoke test \n Are the supplied voltages : 3.45 V and 5 V? \n Is the idle current within 0.5 +/- 0.1 A?"):
+                if tkMessageBox.askyesno( "", "Is the following info OK? \n \n Board ID= %i \n  PowerUnit =%i \n Load array type= %s \n Your name= %s" 
+                                               %(GetBoardID(), GetPowerUnitID(), GetLoadType(), GetNameOfTester()) ):
                     timestamp =  time.strftime("%Y%m%dT%H%M%S") #Setting timestamp format
                     output = buildOutputFilename(timestamp, "VisualAndSmokeTest")
                     if os.path.exists(output): os.remove(output)
                     with open(output,"ab") as f: f.write("OK\n")
                     if tkMessageBox.askyesno( "", "Are you sure you want to run all tests?"):
-                        if( not AreSelectedChannels()): return
+                        #if( not AreSelectedChannels()): return #not needed, we do not want that. 
                         #RunI2CTest(timestamp)
 	                RunLatchupCheck(timestamp)
-                        RunOverTprotectionScan(timestamp)
+                        #RunOverTprotectionScan(timestamp)
                         RunBiasVoltageScan(timestamp)
                         RunThresholdScan(timestamp)
                         RunPowerVoltageScan(timestamp)
@@ -353,8 +375,6 @@ class Application(tk.Frame):
         TemperatureButton = tk.Button(self, text = "Latchup scan", command = RunLatchupCheck)
         TemperatureButton.grid(row=10, column = 4, columnspan =4)
         ##########################################################################################
-
-        
 
         ########## ENTER COMMENT #############################################################
         Comment = tk.StringVar()

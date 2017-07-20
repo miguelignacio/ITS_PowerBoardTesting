@@ -19,49 +19,50 @@ from definitions import ReadRSFromDevice
 
 #------------------------------------------ Main ----------------------------------------
 
-
 def I2C():
+ # Define I2C link address
+ I2CLink         = 0xA
  print "-------------------------- Test I2C ------------------------------\n"
-
+ OpenFtdi()
  print "Raise threshold - Master"
- WriteToDevice(0x31, 0x3F, 0xFF, 0xFF) #raising threshold 
- WriteToDevice(0x33, 0x3F, 0xFF, 0xFF) 
+ WriteToDevice(I2CLink, 0x31, 0x3F, 0xFF, 0xFF) #raising threshold 
+ WriteToDevice(I2CLink, 0x33, 0x3F, 0xFF, 0xFF) 
 
  print "Raise threshold - Slave"
- WriteToDevice(0x43, 0x3F, 0xFF, 0xFF) 
- WriteToDevice(0x51, 0x3F, 0xFF, 0xFF) 
+ WriteToDevice(I2CLink, 0x43, 0x3F, 0xFF, 0xFF) 
+ WriteToDevice(I2CLink, 0x51, 0x3F, 0xFF, 0xFF) 
 
  print "---- LU enable ----"
  print "Read Master LU State:  %X" %(ReadFromDevice(0x20, 1))
 
  print "Enable Master"
- WriteToDevice(0x20, 0x00)
- WriteToDevice(0x20, 0xFF)
+ WriteToDevice(I2CLink, 0x20, 0x00)
+ WriteToDevice(I2CLink, 0x20, 0xFF)
 
- print "Re-Read Master LU State:  %X \n" %(ReadFromDevice(0x20, 1))
+ print "Re-Read Master LU State:  %X \n" %(ReadFromDevice( I2CLink, 0x20, 1))
 
- print "Read Slave LU State:  %X" %(ReadFromDevice(0x27, 1))
+ print "Read Slave LU State:  %X" %(ReadFromDevice( I2CLink, 0x27, 1))
 
  print "Enable Slave"
- WriteToDevice(0x27, 0x00)
- WriteToDevice(0x27, 0xFF)
+ WriteToDevice( I2CLink, 0x27, 0x00)
+ WriteToDevice( I2CLink, 0x27, 0xFF)
 
- print "Re-Read Slave LU State:  %X \n" %(ReadFromDevice(0x27, 1))
+ print "Re-Read Slave LU State:  %X \n" %(ReadFromDevice( I2CLink, 0x27, 1))
 
  print "---- Other I/O ----"
  print "Read back state - Master"
- print "%X" %(ReadFromDevice(0x26, 1))
+ print "%X" %(ReadFromDevice( I2CLink, 0x26, 1))
 
  print "Read back state - Slave"
- print "%X \n" %(ReadFromDevice(0x25, 1))
+ print "%X \n" %(ReadFromDevice( I2CLink, 0x25, 1))
 
  print "---- POT ----"
  print "Write: 0x34 0x35 0x36 0x37"
- WriteToDevice(0x2c, 0x00, 0x34)
- WriteToDevice(0x2c, 0x01, 0x35)
- WriteToDevice(0x2c, 0x02, 0x36)
- WriteToDevice(0x2c, 0x03, 0x37)
- print "Read: %X %X %X %X" %(ReadRSFromDevice(0x2c, 1, 0x00), ReadRSFromDevice(0x2c, 1, 0x01), ReadRSFromDevice(0x2c, 1, 0x02), ReadRSFromDevice(0x2c, 1, 0x03))
+ WriteToDevice( I2CLink, 0x2c, 0x00, 0x34)
+ WriteToDevice( I2CLink,0x2c, 0x01, 0x35)
+ WriteToDevice( I2CLink,0x2c, 0x02, 0x36)
+ WriteToDevice( I2CLink, 0x2c, 0x03, 0x37)
+ print "Read: %X %X %X %X" %(ReadRSFromDevice( I2CLink, 0x2c, 1, 0x00), ReadRSFromDevice( I2CLink, 0x2c, 1, 0x01), ReadRSFromDevice( I2CLink, 0x2c, 1, 0x02), ReadRSFromDevice( I2CLink, 0x2c, 1, 0x03))
 
  print "Write: 0x44 0x45 0x46 0x47"
  WriteToDevice(0x2d, 0x00, 0x44)

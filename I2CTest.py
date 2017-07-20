@@ -13,54 +13,75 @@ import os
 import io
 import sys
 import time
-from definitions import WriteToDevice
-from definitions import ReadFromDevice
-from definitions import ReadRSFromDevice
-from definitions import OpenFtdi
-from definitions import CloseFtdi
+from definitions import *
+from UsefulFunctions import *
 #------------------------------------------ Main ----------------------------------------
+ADCaddress = (0x21, 0x23, 0x22, 0x24)
+POTaddress = (0x2C, 0x2D, 0x2E, 0x2F) #the first two are for master board, the latter for slave. Each one controls 4 channels.
+THaddress = (0x31, 0x33, 0x43, 0x51) #pot addresses
+IOaddress = (0x20, 0x26) #addresses of the IO modules that enable channels.
 
 def I2C():
  # Define I2C link address
- I2CLink         = 0xA
  print "-------------------------- Test I2C ------------------------------\n"
  OpenFtdi()
- #print "Raise threshold - Master"
- #WriteToDevice(I2CLink, 0x31, 0x3F, 0xFF, 0xFF) #raising threshold 
- #WriteToDevice(I2CLink, 0x33, 0x3F, 0xFF, 0xFF) 
+ print "Raising threshold"
+ RaiseThresholdsToMax()
 
- #print "Raise threshold - Slave"
- #WriteToDevice(I2CLink, 0x43, 0x3F, 0xFF, 0xFF) 
- #WriteToDevice(I2CLink, 0x51, 0x3F, 0xFF, 0xFF) 
+ print "---- Latch status----"
+ print GetLatchStatus()
 
- #print "---- LU enable ----"
- #print "Read Master LU State:  %X" %(ReadFromDevice(I2CLink, 0x20, 1))
+ print "---- Enabling all----"
+ UnlatchAll()
 
- #print "Enable Master"
- #WriteToDevice(I2CLink, 0x20, 0x00)
- #WriteToDevice(I2CLink, 0x20, 0xFF)
+ print "Reading ADCs"
+ AddressConfigRegADC()
+ I, V , I_ADC, V_ADC = ReadADC()
+ print 'Current' , I
+ print 'Voltage' , V
 
- 
- print "---- POT ----"
- print "Write: 0x34 0x35 0x36 0x37"
- WriteToDevice( I2CLink, 0x2c, 0x00, 0x59)
- WriteToDevice( I2CLink,0x2c, 0x01, 0x35)
- WriteToDevice( I2CLink,0x2c, 0x02, 0x36)
- WriteToDevice( I2CLink, 0x2c, 0x03, 0x37)
- l = ReadRSFromDevice( I2CLink, 0x2c, 1, 0x00)
- print "Read:"
- print l
+ print "Writing to POTS"
+ WriteToDevice( I2CLink(), POTaddress[0], 0x00, 0x34)
+ WriteToDevice( I2CLink(), POTaddress[0], 0x01, 0x35)
+ WriteToDevice( I2CLink(), POTaddress[0], 0x02, 0x36)
+ WriteToDevice( I2CLink(), POTaddress[0], 0x03, 0x37)
+ print "Reading from POTS "
+ l = ReadRSFromDevice( I2CLink(), POTaddress[0], 4, 0x00)
  print [hex(int(x)) for x in l]
 
- print "Write: 0x44 0x45 0x46 0x47"
- WriteToDevice(I2CLink, 0x2d, 0x00, 0x44)
- WriteToDevice(I2CLink, 0x2d, 0x01, 0x45)
- WriteToDevice(I2CLink, 0x2d, 0x02, 0x46)
- WriteToDevice(I2CLink,0x2d, 0x03, 0x47)
- l = ReadRSFromDevice(I2CLink, 0x2d, 1, 0x00)
- print "Read:"
+ print "Writing to POTS" 
+ WriteToDevice(I2CLink(), POTaddress[1], 0x00, 0x44)
+ WriteToDevice(I2CLink(), POTaddress[1], 0x01, 0x45)
+ WriteToDevice(I2CLink(), POTaddress[1], 0x02, 0x46)
+ WriteToDevice(I2CLink(), POTaddress[1], 0x03, 0x47)
+ print "Reading from POTS "
+ l = ReadRSFromDevice(I2CLink(), POTaddress[0], 4, 0x00)
  print [hex(int(x)) for x in l]
  
+
+ #print "Writing to POTS"
+ #WriteToDevice( I2CLink(), POTaddress[2], 0x00, 0x34)
+ #WriteToDevice( I2CLink(), POTaddress[2], 0x01, 0x35)
+ #WriteToDevice( I2CLink(), POTaddress[2], 0x02, 0x36)
+ #WriteToDevice( I2CLink(), POTaddress[2], 0x03, 0x37)
+ #print "Reading from POTS "
+ #l = ReadRSFromDevice( I2CLink(), POTaddress[2], 4, 0x00)
+ #print [hex(int(x)) for x in l]
+
+ #print "Writing to POTS" 
+ #WriteToDevice(I2CLink(), POTaddress[3], 0x00, 0x44)
+ #WriteToDevice(I2CLink(), POTaddress[3], 0x01, 0x45)
+ #WriteToDevice(I2CLink(), POTaddress[3], 0x02, 0x46)
+ #WriteToDevice(I2CLink(), POTaddress[3], 0x03, 0x47)
+ #print "Reading from POTS "
+ #l = ReadRSFromDevice(I2CLink(), POTaddress[3], 4, 0x00)
+ #print [hex(int(x)) for x in l]
+
+
+ print "Lowering thresholds"
+ PowerThresholdsToMin()
+
+
  print 'This is the end of the I2C addresability test'
  CloseFtdi() # Ends communication with RDO board
  return 0

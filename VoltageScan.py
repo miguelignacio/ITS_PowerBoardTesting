@@ -76,7 +76,8 @@ def BiasVoltageScan(output, step, start, end, SamplingTime, Nsamples, sleep, Pow
     t1 = datetime.datetime.now() #Getting timestamp
     print t1
     print ' The voltage scan step is %d [DAC]' %(step)
-    SetBiasVoltage(0x00,PowerUnitID)
+    print 'Setting Bias Voltage ' 
+    SetBiasVoltage(0,PowerUnitID)
     print 'Bias latch status is ' , GetBiasLatchStatus(PowerUnitID) 
     UnlatchBiasAll(PowerUnitID)
 

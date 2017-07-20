@@ -5,268 +5,286 @@ import ROOT
 from array import array
 
 
-class _VoltageScanStep(object):
-	def __init__(self, vsetDac, v, vrms, dv, i, irms, di, r, t):
-		self.VsetDAC = vsetDac
-		self.V = v
-		self.Vrms = vrms
-		self.dV = dv
-		self.I = i
-		self.Irms = irms
-		self.dI = di
-		self.R = r
-		self.T = t
+columns = {}
+columns["ThresholdScan"] = ["ChannelNumber", "ThDAC", "VsetDAC", "V", "I", "R", "T", "LUState"]
+columns["VoltageScan"] = ["ChannelNumber", "VsetDAC", "V", "Vrms", "dV", "I", "Irms", "dI", "R", "T", "LUState"]
+columns["BiasVoltageScan"] = ["VsetDAC", "V", "Vrms", "dV", "I", "Irms", "dI", "R", "T"]
+columns["TemperatureScan"] = ["Vavg", "Itot", "T"]
+columns["LatchupTest"] = ["ChannelNumber", "BeforeEnabling", "AfterEnabling", "AfterLatching"]
+columns["TestInfo"] = ["BoardNumber", "BoardVersion", "TestNumber", "LoadType", "PowerUnit", "Config", "Tester", "Timestamp"]
 
 
-class VoltageScan(object):
-	def __init__(self):
-		self.ChannelData = {}
+class Scan(object):
+    def __init__(self, testName, hasChannelData):
+        self.Data = []
+        self.columns = columns[testName]
+        self.testName = testName
+        self.hasChannelData = hasChannelData
 
-	def readFile(self, filename):
-		# #ch Vset [DAC] V [V] VRMS [mV] dV[mV] I [A] IRMS [mA] dI [mA] R [ohm] T[C]
-		with open(filename) as f:
-			for line in f:
-				data = line.split()
-				if len(data) == 10 and data[0].isdigit():
-					channelNumber = data[0]
+    def readFile(self, filename):
+        with open(filename) as f:
+            for line in f:
+                data = line.split()
+                if len(data) == len(self.columns) and data[0].isdigit():
+                    self.Data.append(dict(zip(self.columns, data)))
+        if self.hasChannelData:
+            self.buildChannelData()
 
-					if channelNumber not in self.ChannelData:
-						self.ChannelData[channelNumber] = []
+    def readDB(self, boardNumber, testId=0):
+        self.Data = db.getRows(testName, boardNumber, testId)
+        if self.hasChannelData:
+            self.buildChannelData()
 
-					self.ChannelData[channelNumber].append(_VoltageScanStep(data[1],data[2],data[3],data[4],data[5],data[6],data[7], data[8], data[9]))			
+    def buildChannelData(self):
+        self.ChannelData = {}
 
-
-	def readDB(self, boardNumber, testId=0):
-		rows = db.getRows("VoltageScan", boardNumber, testId)
-		for row in rows:
-			channelNumber = row["ChannelNumber"]
-
-			if channelNumber not in self.ChannelData:
-				self.ChannelData[channelNumber] = []
-
-			self.ChannelData[channelNumber].append(_VoltageScanStep(row["VsetDAC"], row["V"], row["Vrms"], row["dV"], row["I"], row["Irms"], row["dI"], row["R"], row["T"]))
-
-
-	def visualizeAndCheck(self, showFits=False):
-		hasProblem = False
-
-		# setting up all of the arrays
-		channels, vints, vslopes, islopes = array('f'), array('f'), array('f'), array('f')
-		channelserr, vintserr, vslopeserr, islopeserr = array('f'), array('f'), array('f'), array('f')
-		fitgraphs = []
-
-		# a rather ugly way of getting the number of bins
-		nSteps = len(self.ChannelData.values()[0])
-		vrms = ROOT.TH2F("vrms", "V RMS", nSteps, 0, 256, 16, 0, 16)
-		irms = ROOT.TH2F("irms", "I RMS", nSteps, 0, 256, 16, 0, 16)
-
-		for channelNumber, steps in self.ChannelData.iteritems():
-			channels.append(float(channelNumber))
-			channelserr.append(0.0)
-
-			# pulling relevant data
-			dac, v, i = array('f'), array('f'), array('f')
-
-			for step in steps:
-				dac.append(float(step.VsetDAC))
-				v.append(float(step.V))
-				i.append(float(step.I))
-				
-				bin = vrms.FindBin(float(step.VsetDAC), float(channelNumber))
-				vrms.SetBinContent(bin, 1000*float(step.Vrms))
-				irms.SetBinContent(bin, 1000*float(step.Irms))
-
-			# creating and fitting each graph
-			vgraph, vfit = self._createAndFitGraph(dac, v, int(channelNumber)%8)
-			vslopes.append(vfit.GetParameter(1))
-			vslopeserr.append(vfit.GetParError(1))
-			vints.append(vfit.GetParameter(0))
-			vintserr.append(vfit.GetParError(0))
-
-			igraph, ifit = self._createAndFitGraph(i, v, int(channelNumber)%8)
-			islopes.append(ifit.GetParameter(1))
-			islopeserr.append(ifit.GetParError(1))
-
-			fitgraphs.append((vgraph, igraph))
-
-		if showFits:
-			datacanvas = ROOT.TCanvas("datacanvas", "Data and fits")
-			datacanvas.Divide(1,2)
-
-			vmultigraph, imultigraph = ROOT.TMultiGraph(), ROOT.TMultiGraph()
-			for graphs in fitgraphs:
-				vmultigraph.Add(graphs[0])
-				imultigraph.Add(graphs[1])
-
-			datacanvas.cd(1)
-			vmultigraph.Draw("ap")
-			vmultigraph.GetXaxis().SetTitle("VsetDAC")
-			vmultigraph.GetYaxis().SetTitle("V")
-			datacanvas.cd(2)
-			imultigraph.Draw("ap")
-			imultigraph.GetXaxis().SetTitle("I")
-			imultigraph.GetYaxis().SetTitle("V")
-
-		fitcanvas = ROOT.TCanvas("fitcanvas", "Fit results")
-		fitcanvas.Divide(3,1)
-
-		fitcanvas.cd(1)
-		vintsgraph = ROOT.TGraphErrors(len(channels), channels, vints, channelserr, vintserr)
-		vintsgraph.SetTitle("Intercept [V]")
-		vintsgraph.SetMarkerStyle(4)
-		vintsgraph.GetXaxis().SetLimits(-1,17)
-		hasProblem = self._checkAndDraw(vintsgraph, vints, 0.1) or hasProblem
-
-		fitcanvas.cd(2)
-		vslopesgraph = ROOT.TGraphErrors(len(channels), channels, vslopes, channelserr, vslopeserr)
-		vslopesgraph.SetTitle("Slope V vs DAC")
-		vslopesgraph.SetMarkerStyle(4)
-		vslopesgraph.GetXaxis().SetLimits(-1,17)
-		hasProblem = self._checkAndDraw(vslopesgraph, vslopes, 0.1) or hasProblem
-
-		fitcanvas.cd(3)
-		islopesgraph = ROOT.TGraphErrors(len(channels), channels, islopes, channelserr, islopeserr)
-		islopesgraph.SetTitle("Load [#Omega]")
-		islopesgraph.SetMarkerStyle(4)
-		islopesgraph.GetXaxis().SetLimits(-1,17)
-		islopesgraph.Draw("ap")
-
-		rmscanvas = ROOT.TCanvas("rmscanvas", "RMS measurements")
-		rmscanvas.Divide(2,1)
-		rmscanvas.cd(1)
-		vrms.Draw("COLZ")
-		rmscanvas.cd(2)
-		irms.Draw("COLZ")
-
-		raw_input("Press enter to continue")
-
-		return hasProblem
+        for step in self.Data:
+            channelNumber = step["ChannelNumber"]
+            if channelNumber not in self.ChannelData:
+                self.ChannelData[channelNumber] = []
+            self.ChannelData[channelNumber].append(step)
 
 
-	def _createAndFitGraph(self, x, y, color):
-		graph = ROOT.TGraph(len(x), x, y)
-		graph.Fit('pol1', 'q')
-		fit = graph.GetFunction('pol1')
-		graph.SetMarkerStyle(4)
-		graph.SetMarkerColor(color)
-		fit.SetLineColor(color)
-		return (graph, fit)
+class ThresholdScan(Scan):
+    def __init__(self):
+        Scan.__init__(self, "ThresholdScan", True)
 
 
-	def _checkAndDraw(self, graph, values, tolerance):
-		graph.Draw("ap")
-		graph.Fit('pol0', 'q0')
-		fit = graph.GetFunction('pol0')
-		center = fit.GetParameter(0)
-		graphMin = (1-tolerance)*center
-		graphMax = (1+tolerance)*center
+class VoltageScan(Scan):
+    def __init__(self):
+        Scan.__init__(self, "VoltageScan", True)
 
-		exceedsRange = False
-		for value in values:
-			if value > graphMax or value < graphMin:
-				exceedsRange = True
+    def visualizeAndCheck(self, showFits=False):
+        hasProblem = False
 
-		if exceedsRange:
-			# draw dashed horizontal lines indicating the tolerance
-			# actually, turn everything red, because ROOT is a pain
-			graph.SetMarkerColor(2)
-			graph.SetMarkerStyle(20)
-			graph.SetLineColor(2)
-			graph.SetFillColor(2)
-		else:
-			# rescale the axes
-			graph.SetMinimum(graphMin)
-			graph.SetMaximum(graphMax)
-		
-		return exceedsRange
+        # setting up all of the arrays
+        channels, vints, vslopes, islopes = array('f'), array('f'), array('f'), array('f')
+        channelserr, vintserr, vslopeserr, islopeserr = array('f'), array('f'), array('f'), array('f')
+        fitgraphs = []
+
+        # a rather ugly way of getting the number of bins
+        nSteps = len(self.ChannelData.values()[0])
+        vrms = ROOT.TH2F("vrms", "V RMS", nSteps, 0, 256, 16, 0, 16)
+        irms = ROOT.TH2F("irms", "I RMS", nSteps, 0, 256, 16, 0, 16)
+        vrms.SetMaximum(5)
+        irms.SetMaximum(5)
+
+        for channelNumber, steps in self.ChannelData.iteritems():
+            channels.append(float(channelNumber))
+            channelserr.append(0.0)
+
+            # pulling relevant data
+            dac, v, i = array('f'), array('f'), array('f')
+
+            for step in steps:
+                dac.append(float(step["VsetDAC"]))
+                v.append(float(step["V"]))
+                i.append(float(step["I"]))
+                
+                bin = vrms.FindBin(float(step["VsetDAC"]), float(channelNumber))
+                vrms.SetBinContent(bin, float(step["Vrms"]))
+                irms.SetBinContent(bin, float(step["Irms"]))
+
+            # creating and fitting each graph
+            vdacgraph, vdacfit = self._createAndFitGraph(dac, v, int(channelNumber)%8)
+            vslopes.append(vdacfit.GetParameter(1))
+            vslopeserr.append(vdacfit.GetParError(1))
+            vints.append(vdacfit.GetParameter(0))
+            vintserr.append(vdacfit.GetParError(0))
+
+            ivgraph, ivfit = self._createAndFitGraph(i, v, int(channelNumber)%8)
+            islopes.append(ivfit.GetParameter(1))
+            islopeserr.append(ivfit.GetParError(1))
+
+            idacgraph, idacfit = self._createAndFitGraph(dac, i, int(channelNumber)%8)
+
+            fitgraphs.append((vdacgraph, ivgraph, idacgraph))
+
+        if showFits:
+            datacanvas = ROOT.TCanvas("datacanvas", "Data and fits")
+            datacanvas.Divide(1,3)
+
+            vmultigraph, ivmultigraph, imultigraph = ROOT.TMultiGraph(), ROOT.TMultiGraph(), ROOT.TMultiGraph()
+            for graphs in fitgraphs:
+                vmultigraph.Add(graphs[0])
+                ivmultigraph.Add(graphs[1])
+                imultigraph.Add(graphs[2])
+
+            datacanvas.cd(1)
+            vmultigraph.Draw("ap")
+            vmultigraph.GetXaxis().SetTitle("VsetDAC")
+            vmultigraph.GetYaxis().SetTitle("V")
+            datacanvas.cd(2)
+            ivmultigraph.Draw("ap")
+            ivmultigraph.GetXaxis().SetTitle("I")
+            ivmultigraph.GetYaxis().SetTitle("V")
+            datacanvas.cd(3)
+            imultigraph.Draw("ap")
+            imultigraph.GetXaxis().SetTitle("VsetDAC")
+            imultigraph.GetYaxis().SetTitle("I")
+
+        fitcanvas = ROOT.TCanvas("fitcanvas", "Fit results")
+        fitcanvas.Divide(3,1)
+
+        fitcanvas.cd(1)
+        vintsgraph = ROOT.TGraphErrors(len(channels), channels, vints, channelserr, vintserr)
+        vintsgraph.SetTitle("Intercept [V]")
+        vintsgraph.SetMarkerStyle(4)
+        vintsgraph.GetXaxis().SetLimits(-1,17)
+        vintsHasProblem = self._checkAndDraw(vintsgraph, vints, 0.1)
+        hasProblem = hasProblem or vintsHasProblem
+
+        fitcanvas.cd(2)
+        vslopesgraph = ROOT.TGraphErrors(len(channels), channels, vslopes, channelserr, vslopeserr)
+        vslopesgraph.SetTitle("Slope V vs DAC")
+        vslopesgraph.SetMarkerStyle(4)
+        vslopesgraph.GetXaxis().SetLimits(-1,17)
+        vslopesHasProblem = self._checkAndDraw(vslopesgraph, vslopes, 0.1)
+        hasProblem = hasProblem or vslopesHasProblem
+
+        fitcanvas.cd(3)
+        islopesgraph = ROOT.TGraphErrors(len(channels), channels, islopes, channelserr, islopeserr)
+        islopesgraph.SetTitle("Load [#Omega]")
+        islopesgraph.SetMarkerStyle(4)
+        islopesgraph.GetXaxis().SetLimits(-1,17)
+        islopesgraph.Draw("ap")
+
+        rmscanvas = ROOT.TCanvas("rmscanvas", "RMS measurements")
+        rmscanvas.Divide(2,1)
+        rmscanvas.cd(1)
+        vrms.Draw("COLZ")
+        rmscanvas.cd(2)
+        irms.Draw("COLZ")
+
+        raw_input("Press enter to continue")
+
+        return hasProblem
 
 
-class BiasVoltageScan(object):
-	def __init__(self):
-		self.Data = []
-
-	def readFile(self, filename):
-		# Vset [DAC] V [V] VRMS [V] dV[mV] I [A] IRMS [A] dI[mA] R [ohm] T[C]
-		with open(filename) as file:
-			for line in file:
-				data = line.split()
-				if len(data) == 9 and data[0].isdigit():
-					self.Data.append(_VoltageScanStep(data[0],data[1],data[2],data[3],data[4],data[5],data[6],data[7],data[8]))
-
-	def readDB(self, boardNumber, testId=0):
-		rows = db.getRows("BiasVoltageScan", boardNumber, testId)
-		for row in rows:
-			self.Data.append(_VoltageScanStep(row["VsetDAC"], row["V"], row["Vrms"], row["dV"], row["I"], row["Irms"], row["dI"], row["R"], row["T"]))
+    def _createAndFitGraph(self, x, y, color):
+        graph = ROOT.TGraph(len(x), x, y)
+        graph.Fit('pol1', 'q')
+        fit = graph.GetFunction('pol1')
+        graph.SetMarkerStyle(4)
+        graph.SetMarkerColor(color)
+        fit.SetLineColor(color)
+        return (graph, fit)
 
 
-class _ThresholdScanStep(object):
-	def __init__(self, thDac, thA, vsetDac, vmon, imon, r, start, end, step):
-		self.ThDAC = thDac
-		self.ThA = thA
-		self.VsetDAC = vsetDac
-		self.Vmon = vmon
-		self.Imon = imon
-		self.R = r
-		self.Start = start
-		self.End = end
-		self.Step = step
+    def _checkAndDraw(self, graph, values, tolerance):
+        graph.Draw("ap")
+        graph.Fit('pol0', 'q0')
+        fit = graph.GetFunction('pol0')
+        center = fit.GetParameter(0)
+        graphMin = (1-tolerance)*center
+        graphMax = (1+tolerance)*center
+
+        exceedsRange = False
+        for value in values:
+            if value > graphMax or value < graphMin:
+                exceedsRange = True
+
+        if exceedsRange:
+            # draw dashed horizontal lines indicating the tolerance
+            # actually, turn everything red, because ROOT is a pain
+            graph.SetMarkerColor(2)
+            graph.SetMarkerStyle(20)
+            graph.SetLineColor(2)
+            graph.SetFillColor(2)
+        else:
+            # rescale the axes
+            graph.SetMinimum(graphMin)
+            graph.SetMaximum(graphMax)       
+
+        return exceedsRange
 
 
-class ThresholdScan(object):
-	def __init__(self):
-		self.ChannelData = {}
+class BiasVoltageScan(Scan):
+    def __init__(self):
+        Scan.__init__(self, "BiasVoltageScan", False)
 
-	def readFile(self, filename):
-		with open(filename) as f:
-			for line in f:
-				data = line.split()
-				if len(data) >= 10 and data[0].isdigit():
-					channelNumber = data[0]
+    def visualizeAndCheck(self):
+        hasProblem = False
 
-					if channelNumber not in self.ChannelData:
-						self.ChannelData[channelNumber] = []
+        dac, v, i, dv, di = array('f'), array('f'), array('f'), array('f'), array('f')
+        for step in self.Data:
+            dac.append(float(step["VsetDAC"]))
+            v.append(float(step["V"]))
+            i.append(float(step["I"]))
+            dv.append(float(step["dV"]))
+            di.append(float(step["dI"]))
 
-					self.ChannelData[channelNumber].append(_ThresholdScanStep(data[1],data[2],data[3],data[4],data[5],data[6],data[7],data[8],data[9]))
+        vgraph = self._createAndFitGraph(dac, v)
+        igraph = self._createAndFitGraph(dac, i)
+        dvgraph = ROOT.TGraph(len(dac), dac, dv)
+        digraph = ROOT.TGraph(len(dac), dac, di)
+
+        biascanvas = ROOT.TCanvas("biascanvas", "Bias voltage scan results")
+        biascanvas.Divide(2,2)
+
+        biascanvas.cd(1)
+        vgraph.Draw("ap")
+        self._setAxes(vgraph, "VsetDAC", "V[V]")
+
+        biascanvas.cd(2)
+        igraph.Draw("ap")
+        self._setAxes(igraph, "VsetDAC", "I[A]")
+
+        biascanvas.cd(3)
+        dvgraph.Draw("ap")
+        self._setAxes(dvgraph, "VsetDAC", "dV[mV]")
+
+        biascanvas.cd(4)
+        digraph.Draw("ap")
+        self._setAxes(digraph, "VsetDAC", "dI[mA]")
+
+        raw_input("Press enter to continue")
+
+        return hasProblem
+
+    def _createAndFitGraph(self, x, y):
+        graph = ROOT.TGraph(len(x), x, y)
+        graph.Fit('pol1')
+        return graph
+
+    def _setAxes(self, graph, xtitle, ytitle):
+        graph.SetMarkerStyle(4)
+        graph.SetTitle("")
+        graph.GetXaxis().SetTitle(xtitle)
+        graph.GetYaxis().SetTitle(ytitle)
+
+class TemperatureScan(Scan):
+    def __init__(self):
+        Scan.__init__(self, "TemperatureScan", False)
 
 
-	def readDB(self, boardNumber, testId=0):
-		rows = db.getRows("ThresholdScan", boardNumber, testId)
-		for row in rows:
-			channelNumber = row["ChannelNumber"]
-
-			if channelNumber not in self.ChannelData:
-				self.ChannelData[channelNumber] = []
-
-			self.ChannelData[channelNumber].append(_ThresholdScanStep(row["ThDAC"], row["ThA"], row["VsetDAC"], row["Vmon"], row["Imon"], row["R"], row["Start"], row["End"], row["Step"]))
+class LatchupTest(Scan):
+    def __init__(self):
+        Scan.__init__(self, "LatchupTest", False)
 
 
 class TestInfo(object):
-	def __init__(self):
-		pass
+    def __init__(self):
+        self.Data = {}
 
-	def parseFilename(self, filename):
-		metadata = filename.split("_")
+    def parseFilename(self, filename):
+        metadata = filename.split("_")
 
-		self.Timestamp = metadata[0]
-		# strip off "BoardID"
-		self.BoardNumber = metadata[1][7:]
-		# strip off "PowerUnitID"
-		self.PowerUnit = metadata[2][11:]
-		# strip off "LoadType"
-		self.LoadType = metadata[3][8:]
-		# strip off "Config"
-		self.Config = metadata[4]
-		# strip off ".txt"
-		self.Tester = metadata[6][:-4]
+        self.Data["Timestamp"] = metadata[0]
+        # strip off "BoardID"
+        self.Data["BoardNumber"] = metadata[1][7:]
+        # strip off "v"
+        self.Data["BoardVersion"] = metadata[2][1:]
+        # strip off "PowerUnitID"
+        self.Data["PowerUnit"] = metadata[3][11:]
+        # strip off "LoadType"
+        self.Data["LoadType"] = metadata[4][8:]
+        # strip off "Config"
+        self.Data["Config"] = metadata[5][6:]
+        # strip off ".txt"
+        self.Data["Tester"] = metadata[7][:-4]
 
 
-	def readDB(self, boardNumber, testId=0):
-		row = db.getRows("TestInfo", boardNumber, testId)[0]
-		self.Id = row["Id"]
-		self.BoardNumber = row["BoardNumber"]
-		self.TestNumber = row["TestNumber"]
-		self.LoadType = row["LoadType"]
-		self.PowerUnit = row["PowerUnit"]
-		self.Config = row["Config"]
-		self.Tester = row["Tester"]
-		self.Timestamp = row["Timestamp"]
+    def readDB(self, boardNumber, testId=0):
+        self.Data = db.getRows("TestInfo", boardNumber, testId)[0]
+        self.Id = self.Data["Id"]

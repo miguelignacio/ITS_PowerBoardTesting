@@ -29,20 +29,25 @@ def TemperatureTest(output, timestep=0.5, PowerUnitID=1, Vset=125):
         #print I
         #print 'Itotal =%f' %(sum(I))
         #print 'Vavg  =%f' %(sum(V)/len(V))
+	
         Itot = sum(I)
         Vavg = sum(V)/len(V)
         time.sleep(timestep)
         
         #line = "%8.5f %8.5f %8.5f" % (Vavg, Itot, T)
         #print "Vavg [V] Itot [A] T [C]"
-        #print "%8.5f %8.5f %8.5f " % (Vavg, Itot, T)        
+	#print I
+        print "%8.5f %8.5f %8.5f " % (Vavg, Itot, T)  
+   
+        LUstate = GetPowerLatchStatus(PowerUnitID)
        
-        if Itot<0.1:
+        #if Itot<0.1 or LUstate==0x00 or Vavg<0.1:
+	if Vavg < 0.001:
             Triggered = True
 	else:
-	    line = "%8.5f %8.5f %8.5f" % (Vavg, Itot, T)
-            print "Vavg [V] Itot [A] T [C]"
-            print "%8.5f %8.5f %8.5f " % (Vavg, Itot, T)
+	    line = "%8.5f %8.5f %8.5f %s" % (Vavg, Itot, T, str(bin(LUstate)) )
+            print "Vavg [V] Itot [A] T [C] LUstate"
+            print line
 	    Tlast = T  
 
     with open(output,"ab") as f:
